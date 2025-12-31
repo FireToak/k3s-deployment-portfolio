@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portfolio             # Nom unique dans le cluster
+  namespace: site-internet    # Namespace dédié au site
+  labels:
+    app: portfolio            # Étiquette pour retrouver ce déploiement
+  annotations:
+    keel.sh/policy: force             # Force la mise à jour même si le tag est le même
+    keel.sh/trigger: poll             # Active le sondage régulier
+    keel.sh/pollSchedule: "@every 5m" # Vérifie toutes les 5 minutes
+spec:
+  replicas: 1                 # Nombre de clones du site
+  selector:
+    matchLabels:
+      app: portfolio          # Sélectionne les Pods avec cette étiquette
+  template:                   # Modèle du Pod à créer
+    metadata:
+      labels:
+        app: portfolio        # L'étiquette collée sur le Pod
+    spec:
+      containers:
+      - name: portfolio-container
+        image: ghcr.io/firetoak/portfolio-bts-sio:latest
+        imagePullPolicy: Always # Force la vérification de l'image au démarrage
+        ports:
+        - containerPort: 80     # Le port ouvert DANS le conteneur (Apache)
+        resources:
+          limits:
+            memory: "512Mi"     # Limite mémoire
+            cpu: "500m"         # Limite CPU
+          requests:
+            memory: "128Mi"     # Mémoire demandée au démarrage
+            cpu: "250m"         # CPU demandée au démarrage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portfolio-service     # Nom DNS : portfolio-service.site-internet.svc.cluster.local
+spec:
+  type: ClusterIP             # IP accessible uniquement DANS le cluster (sécurité)
+  selector:
+    app: portfolio            # "Je redirige le trafic vers les pods qui ont cette étiquette"
+  ports:
+    - protocol: TCP
+      port: 80                # Port du Service (virtuel)
+      targetPort: 80          # Port du Pod (réel, celui d'Apache)
