@@ -1,68 +1,64 @@
-# 🎓 Portfolio - Architecture Conteneurisée (K3s)
+# ☸️ Infrastructure Kubernetes - Portfolio
 
-Ce dépôt contient le code source et les manifestes "Infrastructure as Code" (IaC) de mon portfolio professionnel. Le projet est conçu pour être déployé sur un cluster **K3s** avec une approche **GitOps** simplifiée pour les mises à jour automatiques.
+Ce dépôt contient exclusivement les manifestes **"Infrastructure as Code" (IaC)** nécessaires au déploiement de mon portfolio professionnel sur un cluster **K3s**.
 
-L'application est une refonte complète basée sur **PHP 8.2**, sans framework lourd, optimisée pour la conteneurisation et le SEO.
+Il est découplé du code source de l'application pour respecter les bonnes pratiques GitOps et faciliter la gestion de l'infrastructure.
 
 ## 🏗️ Architecture Technique
 
-Le déploiement orchestre les composants suivants :
+Ces manifestes orchestrent les composants suivants :
 
-* **Application :** PHP 8.2 + Apache (Image Docker optimisée).
-* **Frontend :** TailwindCSS (Compilé via pipeline CI).
-* **Orchestration :** Cluster Kubernetes léger (K3s).
-* **Routing (Ingress) :** Traefik via CRD `IngressRoute` (Gestion avancée du trafic).
-* **CD / Auto-update :** **Keel** (Surveillance du registre et mise à jour automatique des Pods sans intervention via annotations).
+* **Namespace dédié :** Isolation logique des ressources dans `site-internet`.
+* **Deployment :** Gestion des Pods avec quotas de ressources (CPU/RAM) et stratégie de mise à jour automatique via **Keel** (Zero-Touch Deployment).
+* **Service :** Exposition interne via ClusterIP.
+* **Ingress Controller :** Routage HTTP via **Traefik** (`IngressRoute` CRD) pour le domaine `louis.loutik.fr`.
 
-## 📂 Structure du dépôt
+## 📂 Contenu du dépôt
 
-* `/assets`, `/data`, `/includes` : Code source de l'application (Architecture MVC simplifiée).
-* `portfolio.yaml` : Définition du **Deployment** (avec annotations Keel) et du **Service** ClusterIP.
-* `ingress.yaml` : Configuration du routage Traefik (`IngressRoute`) pour exposer le service sur `louis.loutik.fr`.
-* `Dockerfile` : Recette de construction de l'image.
+* `namespace.yaml` : Création de l'espace de nom `site-internet`.
+* `portfolio.yaml` : Définition du Deployment (Image GHCR) et du Service associé.
+* `ingress.yaml` : Règle de routage Traefik pour exposer le service sur le port 80.
 
 ## 🚀 Prérequis
 
-* Un cluster **K3s** fonctionnel avec **Traefik** activé.
-* L'opérateur **Keel** installé sur le cluster (pour le déploiement continu).
-* Un registre d'images accessible (GitHub Container Registry).
+* Un cluster Kubernetes (K3s) fonctionnel.
+* **Traefik** activé (par défaut sur K3s).
+* **Keel** installé dans le cluster (nécessaire pour les annotations `keel.sh/*`).
 
 ## 🛠️ Installation & Déploiement
 
-1.  **Préparation du Namespace :**
-    Nous isolons le projet dans son propre espace logique nommé `site-internet`.
+La structure des fichiers permet un déploiement en une seule commande ("Bulk Apply").
+
+1.  **Récupération des manifestes :**
+    Clonez ce dépôt dans votre dossier de gestion Kubernetes (exemple : `~/k3s/portfolio/`).
     ```bash
-    kubectl create namespace site-internet
+    git clone https://github.com/FireToak/k3s-manifests-portfolio.git ~/k3s/portfolio/
     ```
 
-2.  **Configuration des Manifestes :**
-    *Assurez-vous que le champ `namespace: site-internet` est bien présent dans les métadonnées de `ingress.yaml` et `portfolio.yaml` avant d'appliquer.*
-
-3.  **Déploiement de l'application :**
-    Crée les Pods et le Service interne.
+2.  **Application de la configuration :**
+    Cette commande crée le namespace, le déploiement, le service et la route d'ingress en une seule fois.
     ```bash
-    kubectl apply -f portfolio.yaml -n site-internet
+    kubectl apply -f ~/k3s/portfolio/
+    ```
+    *Note : L'ordre est géré automatiquement par Kubernetes, mais le namespace sera créé en priorité.*
+
+3.  **Vérification :**
+    Assurez-vous que tous les objets sont créés dans le bon namespace.
+    ```bash
+    kubectl get all -n site-internet
+    kubectl get ingressroute -n site-internet
     ```
 
-4.  **Configuration du Routage (Traefik) :**
-    Expose le service via l'IngressRoute Traefik.
-    ```bash
-    kubectl apply -f ingress.yaml -n site-internet
-    ```
+## 🔄 Mise à jour automatique
 
-5.  **Vérification :**
-    Vérifiez que les pods sont en statut `Running` et que le service est détecté.
-    ```bash
-    kubectl get pods -n site-internet
-    ```
+Aucune action `kubectl` n'est requise pour mettre à jour l'application.
+Le fichier `portfolio.yaml` contient les annotations suivantes :
+```yaml
+keel.sh/policy: force
+keel.sh/pollSchedule: "@every 5m"
+```
 
-## 🔄 Cycle de vie (CI/CD)
-
-Le projet utilise le pattern **Watcher** :
-1.  Un **Push** sur la branche `main` déclenche une GitHub Action.
-2.  L'image Docker est construite et poussée sur **GHCR**.
-3.  **Keel** (dans le cluster) détecte le changement de hash de l'image (Polling toutes les 5 min).
-4.  Le cluster met à jour le déploiement automatiquement (Rolling Update).
+Dès qu'une nouvelle image est poussée sur le registre GHCR (via le pipeline CI du dépôt applicatif), le cluster met à jour les Pods automatiquement sous 5 minutes.
 
 ## 👤 Auteur
 
